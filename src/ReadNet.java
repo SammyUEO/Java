@@ -1,65 +1,98 @@
-import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
 
 public class ReadNet {
-	
-    private static StringBuilder pageContent = new StringBuilder();
+    private String writeFilePath;
+    private List<CountryInfo> countriesInfo = new ArrayList<>();
+
+    public ReadNet(String writeFilePath) {
+        this.writeFilePath = writeFilePath;
+    }
 
     public static void main(String[] args) {
+        ReadNet readNet = new ReadNet("informatii_tari.csv");
+        readNet.run();
+    }
+
+    public void run() {
+        process();
+        write();
+    }
+
+    private void process() {
         try {
-            String countryUrl = "https://operationworld.org/locations/italy/";
+            URL address = new URL("https://operationworld.org/locations/europe/");
+            try (Scanner scan = new Scanner(address.openStream())) {
+                String pageContent = "";
+                while (scan.hasNextLine()) {
+                    pageContent += scan.nextLine() + "\n";
+                }
 
-            BufferedReader reader = new BufferedReader(new InputStreamReader(new URL(countryUrl).openStream()));
-            String line;
+                String country = extractInfo(pageContent, "Pray for:", "</h1>");
+                String population = extractInfo(pageContent, "<th scope=\"row\">Population:</th>", "</td>");
+                String evangelical = extractInfo(pageContent, "<th scope=\"row\">% Evangelical:</th>", "</td>");
 
-            while ((line = reader.readLine()) != null) {
-                pageContent.append(line).append("\n");
+                countriesInfo.add(new CountryInfo(country, population, evangelical));
             }
-
-            String country = extractCountry();
-            String population = extractInfo("<th scope=\"row\">Population:</th>", "</td>");
-            String evangelical = extractInfo("<th scope=\"row\">% Evangelical:</th>", "</td>");
-
-            System.out.println("Country: " + country);
-            System.out.println(population);
-            System.out.println(evangelical);
-
-            reader.close();
         } catch (IOException e) {
+            System.out.println("Link invalid");
             e.printStackTrace();
         }
     }
 
-    private static String extractCountry() {
-        String startTag = "Pray for:";
-        String endTag = "</h1>";
+    private static String extractInfo(String pageContent, String startTag, String endTag) {
         int startIndex = pageContent.indexOf(startTag);
         if (startIndex != -1) {
             startIndex = pageContent.indexOf(":", startIndex) + 1;
             int endIndex = pageContent.indexOf(endTag, startIndex);
-            return pageContent.substring(startIndex, endIndex).trim();
-        }
-        return "Nu s-a găsit informație";
-    }
-
-    private static String extractInfo(String startTag, String endTag) {
-        int startIndex = pageContent.indexOf(startTag);
-        if (startIndex != -1) {
-            startIndex = pageContent.indexOf(">", startIndex) + 1;
-            int endIndex = pageContent.indexOf(endTag, startIndex);
             String content = pageContent.substring(startIndex, endIndex).trim();
 
-            //chestii noi 
-
-            // Eliminarea tag-urilor HTML
+            // Eliminarea tag-urilor HTML și alte modificări dorite
             content = content.replaceAll("<[^>]*>", "");
-
-            // Înlocuirea tuturor spațiilor duble cu un singur spațiu
             content = content.replaceAll("\\s+", " ");
             return content;
         }
         return "Nu s-a găsit informație";
+    }
+
+    private void write() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(writeFilePath))) {
+            writer.write("Country,Population,Evangelical\n");
+            for (CountryInfo countryInfo : countriesInfo) {
+                writer.write(countryInfo.getName() + "," + countryInfo.getPopulation() + "," + countryInfo.getEvangelicalPercent() + "\n");
+            }
+            System.out.println("Informatii scrise cu succes in: " + writeFilePath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+class CountryInfo {
+    private String name;
+    private String population;
+    private String evangelicalProcent;
+
+    public CountryInfo(String name, String population, String evangelicalProcent) {
+        this.name = name;
+        this.population = population;
+        this.evangelicalProcent = evangelicalProcent;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getPopulation() {
+        return population;
+    }
+
+    public String getEvangelicalPercent() {
+        return evangelicalProcent;
     }
 }
